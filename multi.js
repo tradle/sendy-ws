@@ -13,26 +13,24 @@ function WSManager (opts) {
 
   typeforce({
     identifier: 'String',
-    url: 'String',
-    wsOpts: '?Object',
-    sendyOpts: '?Object'
+    unreliable: 'Object',
+    clientForRecipient: 'Function'
   }, opts)
 
   EventEmitter.call(this)
 
   this._url = opts.url
   this._identifier = opts.identifier
-  this._sendyOpts = opts.sendyOpts || {}
-  this._sendies = {}
+  this._clientForRecipient = opts.clientForRecipient
+  this._rclients = {}
 
-  this._wsClient = new Client(extend({
-    url: opts.url
-  }, opts.wsOpts || {}))
-
-  this._wsClient.on('receive', function (msg) {
+  this._uclient = opts.unreliable
+  this._uclient.on('receive', function (msg) {
     msg = Packet.decode(msg)
-    var sendy = self._sendyFor(msg.from)
-    sendy.receive(msg.data)
+    var rclient = self._getReliableClientFor(msg.from)
+    if (rclient) {
+      rclient.receive(msg.data)
+    }
   })
 }
 
@@ -41,41 +39,44 @@ exports = module.exports = WSManager
 var proto = WSManager.prototype
 
 proto.send = function (recipient, msg, ondelivered) {
-  var sendy = this._sendyFor(recipient)
-  sendy.send(msg, ondelivered)
+  var rclient = this._getReliableClientFor(recipient)
+  if (rclient) {
+    rclient.send(msg, ondelivered)
+  }
 }
 
-proto._sendyFor = function (recipient) {
+proto._getReliableClientFor = function (recipient) {
   var self = this
-  var sendy = this._sendies[recipient]
-  if (sendy) return sendy
+  var rclient = this._rclients[recipient]
+  if (rclient) return rclient
 
-  sendy = this._sendies[recipient] = new Sendy(this._sendyOpts)
+  rclient = this._rclients[recipient] = this._clientForRecipient(recipient)
+  if (!rclient) return
 
-  sendy.on('receive', function (msg) {
+  rclient.on('receive', function (msg) {
     // emit message from whoever `recipient` is
     self.emit('message', msg, recipient)
   })
 
-  sendy.on('send', function (msg) {
+  rclient.on('send', function (msg) {
     msg = Packet.encode({
       from: self._identifier,
       to: recipient,
       data: msg
     })
 
-    self._wsClient.send(msg)
+    self._uclient.send(msg)
   })
 
-  return sendy
+  return rclient
 }
 
 proto.destroy = function () {
-  for (var recipient in this._sendies) {
-    this._sendies[recipient].destroy()
+  for (var recipient in this._rclients) {
+    this._rclients[recipient].destroy()
   }
 
-  this._wsClient.destroy()
-  delete this._sendies
+  this._uclient.destroy()
+  delete this._reliabilityClient
   delete this._wsClient
 }

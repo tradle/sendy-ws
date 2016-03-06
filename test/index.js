@@ -21,10 +21,10 @@ test('websockets with relay', function (t) {
 
   var receive = Sendy.prototype.receive
   Sendy.prototype.receive = function () {
-    // drop half the messages
-    // if (Math.random() > 0.5) {
+    // drop messages randomly
+    if (Math.random() < 0.5) {
       return receive.apply(this, arguments)
-    // }
+    }
   }
 
   var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
@@ -37,7 +37,7 @@ test('websockets with relay', function (t) {
   var sIdx = 0
 
   names.forEach(function (me) {
-    state[me] = {
+    var myState = state[me] = {
       client: new Client({
         url: relayURL,
         identifier: me,
@@ -46,62 +46,45 @@ test('websockets with relay', function (t) {
       received: {}
     }
 
-    state[me].client.on('message', function (msg, from) {
+    // ;['connect', 'disconnect'].forEach(function (e) {
+    //   myState.client._wsClient.on(e, function () {
+    //     console.log(me, e + 'ed')
+    //   })
+    // })
+
+    myState.client.on('message', function (msg, from) {
+      // console.log('from', from, 'to', me)
       msg = JSON.parse(msg)
       numReceived++
-      t.notOk(state[me].received[from]) // shouldn't have received this yet
+      t.notOk(myState.received[from]) // shouldn't have received this yet
       t.equal(msg.dear, me) // should be addressed to me
-      state[me].received[from] = true
+      myState.received[from] = true
       done()
     })
 
     names.forEach(function (them) {
       if (me === them) return
 
-      state[me].client.send(them, toBuffer({
+      myState.client.send(them, toBuffer({
         dear: them,
         contents: strings[sIdx++ % strings.length]
       }), function () {
-        t.notOk(state[me].sent[them])
-        state[me].sent[them] = true
+        // console.log('delivered from', me, 'to', them)
+        t.notOk(myState.sent[them])
+        myState.sent[them] = true
         numSent++
         done()
       })
     })
   })
 
-  // setInterval(function () {
-  //   // randomly drop connections
-  //   var idx1 = Math.random() * names.length | 0
-  //   var idx2 = (idx1 + Math.ceil(Math.random() * (names.length - 1))) % names.length
-  //   directions[names[idx1]][names[idx2]].client._socket.ondisconnect()
-  // }, 1000)
-
-  // names.forEach(function (me, i) {
-  //   var client = clients[i]
-  //   var received = {}
-  //   client.on('message', function (msg, from) {
-  //     msg = JSON.parse(msg)
-  //     numReceived++
-  //     t.notEqual(from, me) // no messages from self
-  //     t.notOk(received[from]) // shouldn't have received this yet
-  //     t.equal(msg.dear, me) // should be addressed to me
-  //     received[from] = true
-  //     done()
-  //   })
-
-  //   names.forEach(function (them, j) {
-  //     if (i !== j) {
-  //       client.send(them, toBuffer({
-  //         dear: them,
-  //         contents: strings[sIdx++ % strings.length]
-  //       }), function () {
-  //         numSent++
-  //         done()
-  //       })
-  //     }
-  //   })
-  // })
+  setInterval(function () {
+    // randomly drop connections
+    var idx1 = Math.random() * names.length | 0
+    var name = names[idx1]
+    // console.log('randomly disconnecting ' + name)
+    state[name].client._wsClient._socket.disconnect()
+  }, 1000).unref()
 
   function done () {
     if (--togo) return

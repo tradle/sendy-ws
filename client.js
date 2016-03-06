@@ -10,7 +10,7 @@ var debug = require('debug')('reliable-websocket')
 
 var CLIENTS = {}
 
-exports.Client = Client
+exports = module.exports = Client
 exports.createClient = function (opts) {
   var url = opts.url
   var cli = CLIENTS[url]
@@ -44,6 +44,7 @@ function Client (opts) {
 }
 
 util.inherits(Client, EventEmitter)
+exports = module.exports = Client
 
 Client.prototype.connect = function () {
   this._reconnect()

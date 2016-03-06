@@ -6,7 +6,7 @@ var extend = require('xtend/mutable')
 var protobuf = require('protocol-buffers')
 var Sendy = require('sendy')
 var Packet = protobuf(require('@tradle/protobufs').ws).Packet
-var WS = require('./client')
+var Client = require('./client')
 
 function WSManager (opts) {
   var self = this
@@ -25,7 +25,7 @@ function WSManager (opts) {
   this._sendyOpts = opts.sendyOpts || {}
   this._sendies = {}
 
-  this._wsClient = new WS.Client(extend({
+  this._wsClient = new Client(extend({
     url: opts.url
   }, opts.wsOpts || {}))
 

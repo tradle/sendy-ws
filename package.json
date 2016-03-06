@@ -1,0 +1,22 @@
+{
+  "name": "@tradle/ws-client1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mark Vayngrib <mark@tradle.io> (http://github.com/mvayngrib)",
+  "license": "ISC",
+  "dependencies": {
+    "@tradle/protobufs": "file:../tradle-proto",
+    "backoff": "^2.4.1",
+    "debug": "^2.2.0",
+    "protocol-buffers": "^3.1.6",
+    "socket.io-client": "^1.4.5",
+    "typeforce": "^1.6.2"
+  },
+  "devDependencies": {
+    "tape": "^4.5.0"
+  }
+}

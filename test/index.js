@@ -2,9 +2,11 @@
 var path = require('path')
 var test = require('tape')
 var WebSocketRelay = require('@tradle/ws-relay')
-var WebSocketClient = require('../tradle-client')
+var WebSocketClient = require('../client')
 var protobuf = require('protocol-buffers')
+var Sendy = require('sendy')
 var WSPacket = protobuf(require('@tradle/protobufs').ws).Packet
+var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
 
 test('websockets with relay', function (t) {
@@ -16,50 +18,67 @@ test('websockets with relay', function (t) {
     path: relayPath
   })
 
+  var receive = Sendy.prototype.receive
+  Sendy.prototype.receive = function () {
+    // drop half the messages
+    if (Math.random() > 0.5) {
+      return receive.apply(this, arguments)
+    }
+  }
+
   var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
   var names = ['bill', 'ted', 'rufus']
   var clients = names.map(function (name) {
     return new WebSocketClient({
       identifier: name,
+      identifierEncoding: 'utf8',
       url: relayURL,
     })
   })
 
-  // var onmsg = bill._onmessage
-  // // in this test,
-  // // 4 comes at the last piece of a message
-  // var errored = 4
-  // bill._onmessage = function (msg, acknowledge) {
-  //   if (errored-- === 0) {
-  //     errored = true
-  //     return acknowledge({ error: { message: WebSocketClient.OTR_ERROR } })
-  //   }
-
-  //   return onmsg.apply(bill, arguments)
-  // }
-
-  // bill.connect()
-  // bill.once('connect', function () {
-  //   bill._socket.ondisconnect()
+  // clients.forEach(function (c, i) {
+  //   ;['connect', 'disconnect'].forEach(function (e) {
+  //     c.on(e, function () {
+  //       console.log(names[i], e + 'ed')
+  //     })
+  //   })
   // })
 
-  var received = {}
+  setInterval(function () {
+    // randomly drop connections
+    var idx = Math.random() * clients.length | 0
+    clients[idx]._socket.ondisconnect()
+  }, 1000)
+
+  // clients[0].once('connect', function () {
+  //   clients[0]._socket.ondisconnect()
+  // })
+
+  var togo = names.length * (names.length - 1) * 2
+  var numReceived = 0
+  var numSent = 0
+  var sIdx = 0
   names.forEach(function (me, i) {
     var client = clients[i]
+    var received = {}
     client.on('message', function (msg, from) {
       msg = JSON.parse(msg)
-      console.log(me, 'got', msg, 'from', from)
+      numReceived++
       t.notEqual(from, me) // no messages from self
       t.notOk(received[from]) // shouldn't have received this yet
-      t.equal(msg.hey, me) // should be addressed to me
+      t.equal(msg.dear, me) // should be addressed to me
       received[from] = true
+      done()
     })
 
     names.forEach(function (them, j) {
       if (i !== j) {
-        console.log(me, 'sending msg to', them)
-        client.send(them, toBuffer({ hey: them }), function () {
-          t.pass()
+        client.send(them, toBuffer({
+          dear: them,
+          contents: strings[sIdx++ % strings.length]
+        }), function () {
+          numSent++
+          done()
         })
       }
     })
@@ -68,6 +87,9 @@ test('websockets with relay', function (t) {
   function done () {
     if (--togo) return
 
+    t.equal(numReceived, 6)
+    t.equal(numSent, 6)
+    Sendy.prototype.receive = receive
     clients.forEach(function (c) {
       c.destroy()
     })

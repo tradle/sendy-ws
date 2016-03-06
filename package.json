@@ -4,12 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test"
   },
   "author": "Mark Vayngrib <mark@tradle.io> (http://github.com/mvayngrib)",
   "license": "ISC",
   "dependencies": {
-    "@tradle/protobufs": "file:../tradle-proto",
+    "@tradle/protobufs": "^1.0.0",
     "backoff": "^2.4.1",
     "debug": "^2.2.0",
     "protocol-buffers": "^3.1.6",

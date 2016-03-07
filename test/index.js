@@ -2,10 +2,11 @@
 var path = require('path')
 var test = require('tape')
 var WebSocketRelay = require('@tradle/ws-relay')
-var Client = require('../multi')
 var WSClient = require('../client')
 var protobuf = require('protocol-buffers')
 var Sendy = require('sendy')
+var Connection = Sendy.Connection
+var Switchboard = require('../switchboard')
 var Packet = protobuf(require('@tradle/protobufs').ws).Packet
 var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
@@ -22,8 +23,8 @@ test('websockets with relay', function (t) {
     path: relayPath
   })
 
-  var receive = Sendy.prototype.receive
-  Sendy.prototype.receive = function () {
+  var receive = Connection.prototype.receive
+  Connection.prototype.receive = function () {
     // drop messages randomly
     if (Math.random() < 0.4) {
       return receive.apply(this, arguments)
@@ -45,7 +46,7 @@ test('websockets with relay', function (t) {
     })
 
     var myState = state[me] = {
-      client: new Client({
+      client: new Switchboard({
         identifier: me,
         unreliable: networkClient,
         clientForRecipient: function (recipient) {
@@ -119,18 +120,3 @@ test('websockets with relay', function (t) {
 function toBuffer (obj) {
   return new Buffer(JSON.stringify(obj))
 }
-
-        // encode: function (data) {
-        //   return Packet.encode({
-        //     from: me,
-        //     to: them,
-        //     data: data
-        //   })
-        // },
-        // decode: function (data) {
-        //   var p = Packet.decode(data)
-        //   if (p.from === 'bill') debugger
-        //   if (p.from === them && p.to === me) {
-        //     return p.data
-        //   }
-        // }

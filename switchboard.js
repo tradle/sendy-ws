@@ -2,7 +2,7 @@ var extend = require('xtend')
 var typeforce = require('typeforce')
 var protobuf = require('protocol-buffers')
 var Switchboard = require('sendy').Switchboard
-var Packet = protobuf(require('@tradle/protobufs').ws).Packet
+var Packet = protobuf(require('sendy-protobufs').ws).Packet
 
 module.exports = function switchboard (opts) {
   typeforce({

@@ -1,13 +1,11 @@
 
 var path = require('path')
 var test = require('tape')
-var WebSocketRelay = require('@tradle/ws-relay')
+var WebSocketRelay = require('sendy-ws-relay')
 var WSClient = require('../client')
-var protobuf = require('protocol-buffers')
 var Sendy = require('sendy')
 var Connection = Sendy.Connection
 var Switchboard = require('../switchboard')
-var Packet = protobuf(require('@tradle/protobufs').ws).Packet
 var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
 

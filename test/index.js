@@ -102,7 +102,7 @@ test('websockets with relay', function (t) {
     var x = names.length * (names.length - 1)
     t.equal(numReceived, x)
     t.equal(numSent, x)
-    Sendy.prototype.receive = receive
+    Connection.prototype.receive = receive
 
     for (var me in state) {
       state[me].client.destroy()

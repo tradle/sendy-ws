@@ -38,7 +38,7 @@ function Client (opts) {
   this._backoff = backoff.exponential({ initialDelay: 100 })
 
   this._connected = false
-  this._clientOpts = extend({ reconnection: false, path: this._url.path }, opts)
+  this._clientOpts = extend({ reconnection: false, path: this._url.pathname, query: this._url.query })
   delete this._clientOpts.url
   if (opts.autoConnect) this.connect()
 }
@@ -67,7 +67,7 @@ Client.prototype.send = function (data) {
 
 Client.prototype._reconnect = function () {
   var self = this
-  if (this._connected) return
+  if (this._connected || this._destroyed) return
 
   // this._debug('reconnecting', this._socket.id)
 
@@ -78,6 +78,8 @@ Client.prototype._reconnect = function () {
   this._backoff.removeAllListeners()
   this._backoff.backoff()
   this._backoff.on('ready', function () {
+    if (self._destroyed) return
+
     self._debug('backing off and reconnecting')
     self._backoff.backoff()
     self._socket.connect()

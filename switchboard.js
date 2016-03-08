@@ -12,7 +12,8 @@ module.exports = function switchboard (opts) {
   var identifier = opts.identifier
   return new Switchboard(extend({
     decode: decode,
-    encode: encode
+    encode: encode,
+    clientForRecipient: getDefaultClientForRecipient
   }, opts))
 
   function encode (msg, recipient) {
@@ -26,4 +27,8 @@ module.exports = function switchboard (opts) {
 
 function decode (msg) {
   return Packet.decode(msg)
+}
+
+function getDefaultClientForRecipient () {
+  return new Sendy()
 }

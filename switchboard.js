@@ -12,17 +12,11 @@ module.exports = function switchboard (opts) {
 
   var identifier = opts.identifier
   var uclient = opts.unreliable
-  var switchboard = new Switchboard(extend({
+  return new Switchboard(extend({
     decode: decode,
     encode: encode,
     clientForRecipient: getDefaultClientForRecipient
   }, opts))
-
-  uclient.on('404', function (recipient) {
-    switchboard.cancelPending(recipient)
-  })
-
-  return switchboard
 
   function encode (msg, recipient) {
     return Packet.encode({

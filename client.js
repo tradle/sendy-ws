@@ -97,6 +97,10 @@ Client.prototype._reconnect = function () {
     self._reconnect()
   })
 
+  this._socket.on('404', function (them) {
+    self.emit('404', them)
+  })
+
   this._socket.on('message', function (data) {
     self.emit('receive', data)
   })

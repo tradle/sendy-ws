@@ -1,7 +1,8 @@
 var extend = require('xtend')
 var typeforce = require('typeforce')
 var protobuf = require('protocol-buffers')
-var Switchboard = require('sendy').Switchboard
+var Sendy = require('sendy')
+var Switchboard = Sendy.Switchboard
 var Packet = protobuf(require('sendy-protobufs').ws).Packet
 
 module.exports = function switchboard (opts) {
@@ -10,11 +11,18 @@ module.exports = function switchboard (opts) {
   }, opts)
 
   var identifier = opts.identifier
-  return new Switchboard(extend({
+  var uclient = opts.unreliable
+  var switchboard = new Switchboard(extend({
     decode: decode,
     encode: encode,
     clientForRecipient: getDefaultClientForRecipient
   }, opts))
+
+  uclient.on('404', function (recipient) {
+    switchboard.cancelPending(recipient)
+  })
+
+  return switchboard
 
   function encode (msg, recipient) {
     return Packet.encode({

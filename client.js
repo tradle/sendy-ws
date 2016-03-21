@@ -6,7 +6,7 @@ var io = require('socket.io-client')
 var typeforce = require('typeforce')
 var backoff = require('backoff')
 var extend = require('xtend')
-var debug = require('debug')('reliable-websocket')
+var debug = require('debug')('sendy-ws')
 
 var CLIENTS = {}
 
@@ -35,9 +35,13 @@ function Client (opts) {
   EventEmitter.call(this)
 
   this._url = parseURL(opts.url)
-  this._backoff = backoff.exponential({ initialDelay: 100 })
+  this._backoff = backoff.exponential({
+    initialDelay: 100,
+    maxDelay: 6000
+  })
 
   this._connected = false
+  this._connecting = false
   this._clientOpts = extend({ reconnection: false, path: this._url.pathname, query: this._url.query })
   delete this._clientOpts.url
   if (opts.autoConnect) this.connect()
@@ -58,7 +62,9 @@ Client.prototype._debug = function () {
 
 Client.prototype.send = function (data) {
   var self = this
+  if (this._destroyed) throw new Error('destroyed')
   if (!this._connected) {
+    // this.once('connect', this.send.bind(this, data))
     return this.connect()
   }
 
@@ -67,13 +73,14 @@ Client.prototype.send = function (data) {
 
 Client.prototype._reconnect = function () {
   var self = this
-  if (this._connected || this._destroyed) return
+  if (this._connecting || this._connected || this._destroyed) return
 
   // this._debug('reconnecting', this._socket.id)
 
   var base = this._url.protocol + '//' + this._url.host
   this._socket = io(base, this._clientOpts)
 
+  this._connecting = true
   this._backoff.reset()
   this._backoff.removeAllListeners()
   this._backoff.backoff()
@@ -87,8 +94,9 @@ Client.prototype._reconnect = function () {
 
   this._socket.on('connect', function () {
     self._backoff.reset()
-    self.emit('connect')
     self._connected = true
+    self._connecting = false
+    self.emit('connect')
   })
 
   this._socket.on('disconnect', function () {
@@ -98,11 +106,14 @@ Client.prototype._reconnect = function () {
   })
 
   this._socket.on('404', function (them) {
+    self._debug('recipient not found: ' + them)
     self.emit('404', them)
   })
 
-  this._socket.on('message', function (data) {
+  this._socket.on('message', function (data, ack) {
+    // self._debug('received msg')
     self.emit('receive', data)
+    if (ack) ack()
   })
 }
 

@@ -11,7 +11,7 @@ var BASE_PORT = 22222
 
 test('websockets with relay', function (t) {
   console.log('this tests recovery when more than half the packets\n' +
-    'are dropped so give it a minute to complete')
+    'are dropped and with random disconnects so give it a minute to complete')
 
   var port = BASE_PORT++
 

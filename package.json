@@ -12,7 +12,7 @@
     "backoff": "^2.4.1",
     "debug": "^2.2.0",
     "protocol-buffers": "^3.1.6",
-    "sendy": "^1.2.3",
+    "sendy": "^1.4.1",
     "sendy-protobufs": "^1.0.0",
     "socket.io-client": "^1.4.5",
     "typeforce": "^1.6.2",

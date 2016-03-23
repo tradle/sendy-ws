@@ -28,6 +28,8 @@ module.exports = function switchboard (opts) {
 }
 
 function decode (msg) {
+  if (msg instanceof ArrayBuffer) msg = new Buffer(msg)
+
   return Packet.decode(msg)
 }
 

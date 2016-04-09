@@ -101,6 +101,7 @@ Client.prototype._reconnect = function () {
 
   this._socket.on('disconnect', function () {
     self._connected = false
+    self._connecting = false
     self.emit('disconnect')
     self._reconnect()
   })

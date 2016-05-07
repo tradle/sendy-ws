@@ -2,12 +2,13 @@
 var util = require('util')
 var EventEmitter = require('events').EventEmitter
 var parseURL = require('url').parse
-var io = require('socket.io-client')
 var typeforce = require('typeforce')
-var backoff = require('backoff')
 var extend = require('xtend')
 var debug = require('debug')('sendy-ws')
-
+var WebSocket = require('ws')
+var backoff = require('backoff')
+var protobufs = require('sendy-protobufs').ws
+var schema = protobufs.schema
 var CLIENTS = {}
 
 exports = module.exports = Client
@@ -34,16 +35,27 @@ function Client (opts) {
 
   EventEmitter.call(this)
 
-  this._url = parseURL(opts.url)
-  this._backoff = backoff.exponential({
+  this._url = opts.url
+  this._backoff = opts.backoff || backoff.exponential({
     initialDelay: 100,
-    maxDelay: 6000
+    maxDelay: 5000
+  })
+
+  this._backoff.on('ready', function () {
+    if (self._destroyed) return
+
+    try {
+      self._socket.close()
+    } catch (err) {}
+
+    self._reconnect()
   })
 
   this._connected = false
   this._connecting = false
-  this._clientOpts = extend({ reconnection: false, path: this._url.pathname, query: this._url.query })
-  delete this._clientOpts.url
+  this._opts = extend(opts)
+  this._onclose = this._onclose.bind(this)
+  this._onopen = this._onopen.bind(this)
   if (opts.autoConnect) this.connect()
 }
 
@@ -52,6 +64,58 @@ exports = module.exports = Client
 
 Client.prototype.connect = function () {
   this._reconnect()
+}
+
+Client.prototype._reconnect = function () {
+  if (this._connecting || this._connected || this._destroyed) return
+
+  this._connecting = true
+  this._openSocket()
+}
+
+Client.prototype._openSocket = function () {
+  var self = this
+  this._socket = new WebSocket(this._url/*, this._wsOptions*/)
+  this._socket.on('open', this._onopen)
+  this._socket.on('close', this._onclose)
+  this._socket.on('message', function (packet, flags) {
+    if (!flags.binary) return self.emit('error', 'ignoring non-binary message')
+
+    var dec = protobufs.decoderFor(packet)
+    if (dec === schema.Error) {
+      var error = protobufs.decode(packet)
+      if (error.type === schema.ErrorType.RecipientNotFound) {
+        self.emit('404', error.recipient)
+      } else {
+        var str = JSON.stringify(error)
+        self._debug('received error: ' + str)
+        self.emit('error', new Error(str))
+      }
+
+      return
+    }
+
+    if (dec !== schema.Packet) {
+      return self._debug('ignoring unsupported packet', packet)
+    }
+
+    var msg = protobufs.decode(packet)
+    self.emit('receive', msg)
+  })
+}
+
+Client.prototype._onopen = function () {
+  this._backoff.reset()
+  this._connected = true
+  this._connecting = false
+  this.emit('connect')
+}
+
+Client.prototype._onclose = function () {
+  this._connected = false
+  this._connecting = false
+  this.emit('disconnect')
+  this._backoff.backoff()
 }
 
 Client.prototype._debug = function () {
@@ -64,58 +128,18 @@ Client.prototype.send = function (data) {
   var self = this
   if (this._destroyed) throw new Error('destroyed')
   if (!this._connected) {
-    // this.once('connect', this.send.bind(this, data))
-    return this.connect()
+    if (!this._connecting) this.connect()
+
+    return
   }
 
-  this._socket.emit('message', data)
-}
-
-Client.prototype._reconnect = function () {
-  var self = this
-  if (this._connecting || this._connected || this._destroyed) return
-
-  // this._debug('reconnecting', this._socket.id)
-
-  var base = this._url.protocol + '//' + this._url.host
-  this._socket = io(base, this._clientOpts)
-
-  this._connecting = true
-  this._backoff.reset()
-  this._backoff.removeAllListeners()
-  this._backoff.backoff()
-  this._backoff.on('ready', function () {
-    if (self._destroyed) return
-
-    self._debug('backing off and reconnecting')
-    self._backoff.backoff()
-    self._socket.connect()
-  })
-
-  this._socket.on('connect', function () {
-    self._backoff.reset()
-    self._connected = true
-    self._connecting = false
-    self.emit('connect')
-  })
-
-  this._socket.on('disconnect', function () {
-    self._connected = false
-    self._connecting = false
-    self.emit('disconnect')
-    self._reconnect()
-  })
-
-  this._socket.on('404', function (them) {
-    self._debug('recipient not found: ' + them)
-    self.emit('404', them)
-  })
-
-  this._socket.on('message', function (data, ack) {
-    // self._debug('received msg')
-    self.emit('receive', data)
-    if (ack) ack()
-  })
+  try {
+    this._socket.send(data, { binary: true, mask: this._opts.mask !== false }, function (err) {
+      if (err) self.emit('error', err)
+    })
+  } catch (err) {
+    this._debug('failed to send', err)
+  }
 }
 
 Client.prototype.destroy = function () {
@@ -124,7 +148,7 @@ Client.prototype.destroy = function () {
   this._destroyed = true
 
   if (this._socket) {
-    this._socket.disconnect()
+    this._socket.close()
     this._socket = null
   }
 

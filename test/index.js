@@ -9,6 +9,70 @@ var Switchboard = require('../switchboard')
 var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
 
+test.skip('websockets with relay on good connection', function (t) {
+  t.timeoutAfter(90000)
+  var port = BASE_PORT++
+
+  var relayPath = '/custom/relay/path'
+  var relay = new WebSocketRelay({
+    port: port,
+    path: relayPath
+  })
+
+  var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
+  var names = ['bill', 'ted']
+  var state = {}
+
+  names.forEach(function (me) {
+    var networkClient = new WSClient({
+      url: relayURL + '?from=' + me,
+      autoConnect: true
+    })
+
+    state[me] = {
+      client: new Switchboard({
+        identifier: me,
+        unreliable: networkClient,
+        clientForRecipient: function (recipient) {
+          var sendy = new Sendy({ mtu: 10000 })
+          sendy.setTimeout(1000)
+          return sendy
+        }
+      }),
+      sent: {},
+      received: {},
+      networkClient: networkClient
+    }
+  })
+
+  var expected = toBuffer({
+    dear: 'ted',
+    contents: 'sixmeg'.repeat(1000000)
+  })
+
+  state['bill'].client.send('ted', expected, function () {
+    t.pass('delivery confirmed')
+    finish()
+  })
+
+  var togo = 2
+  state['ted'].client.on('message', function (actual) {
+    t.same(actual, expected, 'received')
+    finish()
+  })
+
+  function finish (err) {
+    if (err) throw err
+    if (--togo) return
+
+    t.end()
+
+    state.bill.client.destroy()
+    state.ted.client.destroy()
+    relay.destroy()
+  }
+})
+
 test('websockets with relay', function (t) {
   console.log('this tests recovery when more than half the packets\n' +
     'are dropped and with random disconnects so give it a minute to complete')
@@ -40,16 +104,13 @@ test('websockets with relay', function (t) {
 
   names.forEach(function (me) {
     var networkClient = new WSClient({
-      url: relayURL
+      url: relayURL + '?from=' + me
     })
 
     var myState = state[me] = {
       client: new Switchboard({
         identifier: me,
-        unreliable: networkClient,
-        clientForRecipient: function (recipient) {
-          return new Sendy()
-        }
+        unreliable: networkClient
       }),
       sent: {},
       received: {},
@@ -93,7 +154,7 @@ test('websockets with relay', function (t) {
     var idx1 = Math.random() * names.length | 0
     var name = names[idx1]
     // console.log('randomly disconnecting ' + name)
-    state[name].networkClient._socket.disconnect()
+    state[name].networkClient._socket.close()//emit('close')
   }, 1000).unref()
 
   function done () {

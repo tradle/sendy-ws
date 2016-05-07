@@ -3,7 +3,8 @@ var typeforce = require('typeforce')
 var protobuf = require('protocol-buffers')
 var Sendy = require('sendy')
 var Switchboard = Sendy.Switchboard
-var Packet = protobuf(require('sendy-protobufs').ws).Packet
+var schema = require('sendy-protobufs').ws.schema
+var Packet = schema.Packet
 
 module.exports = function switchboard (opts) {
   typeforce({
@@ -20,7 +21,6 @@ module.exports = function switchboard (opts) {
 
   function encode (msg, recipient) {
     return Packet.encode({
-      from: identifier,
       to: recipient,
       data: msg
     })
@@ -29,6 +29,7 @@ module.exports = function switchboard (opts) {
 
 function decode (msg) {
   if (msg instanceof ArrayBuffer) msg = new Buffer(msg)
+  if (!Buffer.isBuffer(msg)) return msg
 
   return Packet.decode(msg)
 }

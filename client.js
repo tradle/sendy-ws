@@ -42,7 +42,13 @@ function Client (opts) {
 
   this._connected = false
   this._connecting = false
-  this._clientOpts = extend({ reconnection: false, path: this._url.pathname, query: this._url.query })
+  this._clientOpts = extend({
+    reconnection: false,
+    path: this._url.pathname,
+    query: this._url.query,
+    forceBase64: opts.forceBase64
+  })
+
   delete this._clientOpts.url
   if (opts.autoConnect) this.connect()
 }

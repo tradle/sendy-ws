@@ -11,6 +11,7 @@ var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
 
 test('multi-device', function (t) {
+  t.timeoutAfter(10000)
   var port = BASE_PORT++
 
   var relayPath = '/custom/relay/path'
@@ -22,12 +23,12 @@ test('multi-device', function (t) {
   var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
   var state = {}
   var devices = [
-    { from: 'bill',  device: '1' },
-    { from: 'bill',  device: '2' },
+    { from: 'bill',  pubKey: '1' },
+    { from: 'bill',  pubKey: '2' },
     { from: 'ted' }
   ]
 
-  var togo = 6 // ted sends/receives 1, bills send/receive 1
+  var togo = 7 // ted sends 1, receives 2, bills each send 1  and receive 1
   var numReceived = 0
   var numSent = 0
   var sIdx = 0
@@ -42,7 +43,6 @@ test('multi-device', function (t) {
     var myState = state[qs] = {
       client: new Switchboard({
         identifier: device.from,
-        device: device.device,
         unreliable: networkClient,
         clientForRecipient: function (recipient) {
           return new Sendy()
@@ -60,10 +60,10 @@ test('multi-device', function (t) {
     // })
 
     myState.client.on('message', function (msg, from) {
-      // console.log('from', from, 'to', me)
       msg = JSON.parse(msg)
       numReceived++
-      t.notOk(myState.received[from]) // shouldn't have received this yet
+      // console.log('from', from, 'to', device, msg)
+      // t.notOk(myState.received[from]) // shouldn't have received this yet
       t.equal(msg.dear, me) // should be addressed to me
       myState.received[from] = true
       done()
@@ -91,7 +91,7 @@ test('multi-device', function (t) {
   function done () {
     if (--togo) return
 
-    t.equal(numReceived, 3)
+    t.equal(numReceived, 4)
     t.equal(numSent, 3)
 
     for (var id in state) {
@@ -106,6 +106,7 @@ test('multi-device', function (t) {
 })
 
 test('websockets with relay', function (t) {
+  t.timeoutAfter(90000)
   console.log('this tests recovery when more than half the packets\n' +
     'are dropped and with random disconnects so give it a minute to complete')
 

@@ -1,6 +1,5 @@
 
 var path = require('path')
-var querystring = require('querystring')
 var test = require('tape')
 var WebSocketRelay = require('sendy-ws-relay')
 var WSClient = require('../client')
@@ -9,101 +8,6 @@ var Connection = Sendy.Connection
 var Switchboard = require('../switchboard')
 var strings = require('./fixtures/strings')
 var BASE_PORT = 22222
-
-test('multi-device', function (t) {
-  t.timeoutAfter(10000)
-  var port = BASE_PORT++
-
-  var relayPath = '/custom/relay/path'
-  var relay = new WebSocketRelay({
-    port: port,
-    path: relayPath
-  })
-
-  var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
-  var state = {}
-  var devices = [
-    { from: 'bill',  pubKey: '1' },
-    { from: 'bill',  pubKey: '2' },
-    { from: 'ted' }
-  ]
-
-  var togo = 7 // ted sends 1, receives 2, bills each send 1  and receive 1
-  var numReceived = 0
-  var numSent = 0
-  var sIdx = 0
-
-  devices.forEach(function (device) {
-    var me = device.from
-    var qs = querystring.stringify(device)
-    var networkClient = new WSClient({
-      url: relayURL + '?' + qs
-    })
-
-    var myState = state[qs] = {
-      client: new Switchboard({
-        identifier: device.from,
-        unreliable: networkClient,
-        clientForRecipient: function (recipient) {
-          return new Sendy()
-        }
-      }),
-      sent: {},
-      received: {},
-      networkClient: networkClient
-    }
-
-    // ;['connect', 'disconnect'].forEach(function (e) {
-    //   myState.client._wsClient.on(e, function () {
-    //     console.log(me, e + 'ed')
-    //   })
-    // })
-
-    myState.client.on('message', function (msg, from) {
-      msg = JSON.parse(msg)
-      numReceived++
-      // console.log('from', from, 'to', device, msg)
-      // t.notOk(myState.received[from]) // shouldn't have received this yet
-      t.equal(msg.dear, me) // should be addressed to me
-      myState.received[from] = true
-      done()
-    })
-
-    var sentTo = {}
-    devices.forEach(function (them) {
-      them = them.from
-      if (device.from === them || sentTo[them]) return
-
-      sentTo[them] = true
-      myState.client.send(them, toBuffer({
-        dear: them,
-        contents: strings[sIdx++ % strings.length]
-      }), function () {
-        // console.log('delivered from', me, 'to', them)
-        t.notOk(myState.sent[them])
-        myState.sent[them] = true
-        numSent++
-        done()
-      })
-    })
-  })
-
-  function done () {
-    if (--togo) return
-
-    t.equal(numReceived, 4)
-    t.equal(numSent, 3)
-
-    for (var id in state) {
-      state[id].client.destroy()
-    }
-
-    t.end()
-    // Socket.IO takes ~30 seconds to clean up (timeout its connections)
-    // no one wants to wait that long for tests to finish
-    // process.exit(0)
-  }
-})
 
 test('websockets with relay', function (t) {
   t.timeoutAfter(90000)
@@ -129,12 +33,6 @@ test('websockets with relay', function (t) {
   var relayURL = 'http://127.0.0.1:' + port + path.join('/', relayPath)
   var names = ['bill', 'ted', 'rufus']
   var state = {}
-  // var devices = [
-  //   { from: 'bill',  device: '1' },
-  //   { from: 'bill',  device: '2' },
-  //   { from: 'ted',  device: '1' },
-  //   { from: 'rufus' }
-  // ]
 
   var togo = names.length * (names.length - 1) * 2
   var numReceived = 0
@@ -143,7 +41,7 @@ test('websockets with relay', function (t) {
 
   names.forEach(function (me) {
     var networkClient = new WSClient({
-      url: relayURL + '?' + querystring.stringify({ from: me })
+      url: relayURL + '?from=' + me
     })
 
     var myState = state[me] = {
@@ -212,14 +110,10 @@ test('websockets with relay', function (t) {
     }
 
     t.end()
+    // Socket.IO takes ~30 seconds to clean up (timeout its connections)
+    // no one wants to wait that long for tests to finish
+    process.exit(0)
   }
-})
-
-test('[ignore]', function (t) {
-  // Socket.IO takes ~30 seconds to clean up (timeout its connections)
-  // no one wants to wait that long for tests to finish
-  t.end()
-  process.exit(0)
 })
 
 function toBuffer (obj) {

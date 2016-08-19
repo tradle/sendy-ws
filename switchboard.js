@@ -7,9 +7,7 @@ var Packet = protobuf(require('sendy-protobufs').ws).Packet
 
 module.exports = function switchboard (opts) {
   typeforce({
-    identifier: 'String',
-    // pubKey: '?String'
-    // device: '?String'
+    identifier: 'String'
   }, opts)
 
   var identifier = opts.identifier
@@ -22,7 +20,6 @@ module.exports = function switchboard (opts) {
 
   function encode (msg, recipient) {
     return Packet.encode({
-      from: identifier,
       to: recipient,
       data: msg
     })

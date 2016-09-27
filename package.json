@@ -22,5 +22,8 @@
   "devDependencies": {
     "sendy-ws-relay": "^1.5.2",
     "tape": "^4.5.0"
+  },
+  "browser": {
+    "ws": false
   }
 }

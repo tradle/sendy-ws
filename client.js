@@ -62,7 +62,7 @@ Client.prototype.connect = function () {
 
 Client.prototype._debug = function () {
   var args = [].slice.call(arguments)
-  args.unshift(this._url)
+  args.unshift(this._url.href)
   return debug.apply(null, args)
 }
 
@@ -102,12 +102,14 @@ Client.prototype._reconnect = function () {
     self._backoff.reset()
     self._connected = true
     self._connecting = false
+    self._debug('connected')
     self.emit('connect')
   })
 
   this._socket.on('disconnect', function () {
     self._connected = false
     self._connecting = false
+    self._debug('disconnected')
     self.emit('disconnect')
     self._reconnect()
   })

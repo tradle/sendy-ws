@@ -6,7 +6,7 @@ var io = require('socket.io-client')
 var typeforce = require('typeforce')
 var backoff = require('backoff')
 var extend = require('xtend')
-var debug = require('debug')('sendy-ws')
+var debug = require('debug')('sendy:ws:client')
 
 var CLIENTS = {}
 
@@ -40,6 +40,7 @@ function Client (opts) {
     maxDelay: 6000
   })
 
+  this._listeners = []
   this._connected = false
   this._connecting = false
   this._clientOpts = extend({
@@ -50,6 +51,7 @@ function Client (opts) {
   })
 
   delete this._clientOpts.url
+  this._onSocketError = this._onSocketError.bind(this)
   if (opts.autoConnect) this.connect()
 }
 
@@ -74,7 +76,11 @@ Client.prototype.send = function (data) {
     return this.connect()
   }
 
-  this._socket.emit('message', data)
+  try {
+    this._socket.emit('message', data)
+  } catch (err) {
+    this._onSocketError(err)
+  }
 }
 
 Client.prototype._reconnect = function () {
@@ -84,7 +90,9 @@ Client.prototype._reconnect = function () {
   // this._debug('reconnecting', this._socket.id)
 
   var base = this._url.protocol + '//' + this._url.host
-  this._socket = io(base, this._clientOpts)
+  if (!this._socket) {
+    this._socket = io(base, this._clientOpts)
+  }
 
   this._connecting = true
   this._backoff.reset()
@@ -98,7 +106,7 @@ Client.prototype._reconnect = function () {
     self._socket.connect()
   })
 
-  this._socket.on('connect', function () {
+  this._listenTo(this._socket, 'connect', function () {
     self._backoff.reset()
     self._connected = true
     self._connecting = false
@@ -106,24 +114,58 @@ Client.prototype._reconnect = function () {
     self.emit('connect')
   })
 
-  this._socket.on('disconnect', function () {
+  this._listenTo(this._socket, 'disconnect', function () {
     self._connected = false
     self._connecting = false
     self._debug('disconnected')
     self.emit('disconnect')
-    self._reconnect()
+    process.nextTick(function () {
+      self._reconnect()
+    })
   })
 
-  this._socket.on('404', function (them) {
+  this._listenTo(this._socket, '404', function (them) {
     self._debug('recipient not found: ' + them)
     self.emit('404', them)
   })
 
-  this._socket.on('message', function (data, ack) {
+  this._listenTo(this._socket, 'message', function (data, ack) {
     // self._debug('received msg')
     self.emit('receive', data)
     if (ack) ack()
   })
+
+  this._listenTo(this._socket, 'error', this._onSocketError)
+}
+
+Client.prototype._listenTo = function (emitter, event, handler) {
+  emitter.on(event, handler)
+  this._listeners.push({
+    emitter: emitter,
+    event: event,
+    handler: handler
+  })
+}
+
+Client.prototype._stopListening = function () {
+  var listeners = this._listeners.slice()
+  listeners.forEach(function (info) {
+    info.emitter.off(info.event, info.handler)
+  })
+}
+
+Client.prototype._killSocket = function () {
+  this._debug('destroying')
+  var socket = this._socket
+  delete this._socket
+  socket.disconnect()
+  this._stopListening()
+}
+
+Client.prototype._onSocketError = function (err) {
+  this._debug('socket experienced error', err)
+  this._killSocket()
+  this._reconnect()
 }
 
 Client.prototype.destroy = function () {
@@ -133,7 +175,7 @@ Client.prototype.destroy = function () {
 
   if (this._socket) {
     this._socket.disconnect()
-    this._socket = null
+    this._killSocket()
   }
 
   this.emit('destroy')

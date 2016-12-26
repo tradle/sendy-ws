@@ -3,7 +3,10 @@ var util = require('util')
 var EventEmitter = require('events').EventEmitter
 var parseURL = require('url').parse
 var io = require('socket.io-client')
+var wildcardMiddleware = require('socketio-wildcard')
+var enableWildcardEventHandlers = wildcardMiddleware(io.Manager)
 var typeforce = require('typeforce')
+var bindAll = require('bindall')
 var backoff = require('backoff')
 var extend = require('xtend')
 var debug = require('debug')('sendy:ws:client')
@@ -51,7 +54,7 @@ function Client (opts) {
   })
 
   delete this._clientOpts.url
-  this._onSocketError = this._onSocketError.bind(this)
+  bindAll(this)
   if (opts.autoConnect) this.connect()
 }
 
@@ -92,38 +95,16 @@ Client.prototype._reconnect = function () {
   var base = this._url.protocol + '//' + this._url.host
   if (!this._socket) {
     this._socket = io(base, this._clientOpts)
+    enableWildcardEventHandlers(this._socket)
   }
 
   this._connecting = true
   this._backoff.reset()
   this._backoff.removeAllListeners()
   this._backoff.backoff()
-  this._backoff.on('ready', function () {
-    if (self._destroyed) return
-
-    self._debug('backing off and reconnecting')
-    self._backoff.backoff()
-    self._socket.connect()
-  })
-
-  this._listenTo(this._socket, 'connect', function () {
-    self._backoff.reset()
-    self._connected = true
-    self._connecting = false
-    self._debug('connected')
-    self.emit('connect')
-  })
-
-  this._listenTo(this._socket, 'disconnect', function () {
-    self._connected = false
-    self._connecting = false
-    self._debug('disconnected')
-    self.emit('disconnect')
-    process.nextTick(function () {
-      self._reconnect()
-    })
-  })
-
+  this._backoff.on('ready', this._backoffAndConnect)
+  this._listenTo(this._socket, 'connect', this._onconnect)
+  this._listenTo(this._socket, 'disconnect', this._ondisconnect)
   this._listenTo(this._socket, '404', function (them) {
     self._debug('recipient not found: ' + them)
     self.emit('404', them)
@@ -135,7 +116,42 @@ Client.prototype._reconnect = function () {
     if (ack) ack()
   })
 
+  // this._listenTo(this._socket, 'presence', function (data))
+
   this._listenTo(this._socket, 'error', this._onSocketError)
+  this._listenTo(this._socket, '*', function (e) {
+    const data = e.data
+    if (data[0] !== 'message') {
+      self.emit.apply(self, data)
+    }
+  })
+}
+
+Client.prototype._onconnect = function () {
+  this._backoff.reset()
+  this._connected = true
+  this._connecting = false
+  this._debug('connected')
+  this.emit('connect')
+}
+
+Client.prototype._ondisconnect = function () {
+  var self = this
+  this._connected = false
+  this._connecting = false
+  this._debug('disconnected')
+  this.emit('disconnect')
+  process.nextTick(function () {
+    self._reconnect()
+  })
+}
+
+Client.prototype._backoffAndConnect = function () {
+  if (this._destroyed) return
+
+  this._debug('backing off and reconnecting')
+  this._backoff.backoff()
+  this._socket.connect()
 }
 
 Client.prototype._listenTo = function (emitter, event, handler) {
@@ -159,6 +175,7 @@ Client.prototype._killSocket = function () {
   if (!socket) return
 
   delete this._socket
+  this._backoff.reset()
   socket.disconnect()
   this._stopListening()
 }
@@ -174,11 +191,6 @@ Client.prototype.destroy = function () {
 
   this._destroyed = true
   this._debug('destroying')
-
-  if (this._socket) {
-    this._socket.disconnect()
-    this._killSocket()
-  }
-
+  this._killSocket()
   this.emit('destroy')
 }

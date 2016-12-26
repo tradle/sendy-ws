@@ -10,10 +10,12 @@
   "license": "MIT",
   "dependencies": {
     "backoff": "^2.4.1",
+    "bindall": "2.0.1",
     "debug": "^2.2.0",
     "protocol-buffers": "^3.1.6",
     "sendy-protobufs": "1.0.0",
     "socket.io-client": "^1.4.5",
+    "socketio-wildcard": "0.3.0",
     "typeforce": "^1.6.2",
     "xtend": "^4.0.1"
   },

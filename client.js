@@ -155,8 +155,9 @@ Client.prototype._stopListening = function () {
 }
 
 Client.prototype._killSocket = function () {
-  this._debug('destroying')
   var socket = this._socket
+  if (!socket) return
+
   delete this._socket
   socket.disconnect()
   this._stopListening()
@@ -172,6 +173,7 @@ Client.prototype.destroy = function () {
   if (this._destroyed) return
 
   this._destroyed = true
+  this._debug('destroying')
 
   if (this._socket) {
     this._socket.disconnect()

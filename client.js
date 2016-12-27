@@ -86,6 +86,18 @@ Client.prototype.send = function (data) {
   }
 }
 
+Client.prototype.sendCustomEvent = function (event /*, arg0, arg1 */) {
+  const self = this
+  if (!this._connected) {
+    const args = [].slice.call(arguments)
+    return this.once('connect', function () {
+      self.sendCustomEvent.apply(self, args)
+    })
+  }
+
+  this._socket.emit.apply(this._socket, arguments)
+}
+
 Client.prototype._reconnect = function () {
   var self = this
   if (this._connecting || this._connected || this._destroyed) return

@@ -188,6 +188,8 @@ Client.prototype._killSocket = function () {
 
   delete this._socket
   this._backoff.reset()
+  this._connected = false
+  this._connecting = false
   socket.disconnect()
   this._stopListening()
 }

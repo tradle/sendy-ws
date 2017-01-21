@@ -105,7 +105,9 @@ Client.prototype._reconnect = function () {
   // this._debug('reconnecting', this._socket.id)
 
   var base = this._url.protocol + '//' + this._url.host
-  if (!this._socket) {
+  if (this._socket) {
+    this._stopListening()
+  } else {
     this._socket = io(base, this._clientOpts)
     enableWildcardEventHandlers(this._socket)
   }
@@ -180,6 +182,8 @@ Client.prototype._stopListening = function () {
   listeners.forEach(function (info) {
     info.emitter.off(info.event, info.handler)
   })
+
+  this._listeners.length = 0
 }
 
 Client.prototype._killSocket = function () {
